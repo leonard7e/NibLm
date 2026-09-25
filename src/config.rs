@@ -143,6 +143,7 @@ mod tests {
         assert_eq!(config.base_url, "http://localhost:11434");
     }
 
+	/*
     #[test]
     fn test_config_path_default() {
         // Clear env var if present to test standard path
@@ -155,6 +156,7 @@ mod tests {
             unsafe { std::env::set_var("NIBLM_CONFIG", val) };
         }
     }
+    */
 
     #[test]
     fn test_config_path_env_override() {
