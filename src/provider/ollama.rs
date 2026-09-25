@@ -16,7 +16,10 @@ impl OllamaProvider {
         Self {
             base_url: base_url.trim_end_matches('/').to_string(),
             num_ctx,
-            client: Client::new(),
+            client: Client::builder()
+                .user_agent(super::USER_AGENT)
+                .build()
+                .unwrap_or_default(),
         }
     }
 }

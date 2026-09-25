@@ -1363,6 +1363,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 
 [[package]]
+name = "niblm"
+version = "0.5.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64",
+ "clap",
+ "dialoguer",
+ "dirs",
+ "futures",
+ "image",
+ "mockito",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "symphonia",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "no_std_io2"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2169,28 +2191,6 @@ name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
-
-[[package]]
-name = "summarizer"
-version = "0.5.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "base64",
- "clap",
- "dialoguer",
- "dirs",
- "futures",
- "image",
- "mockito",
- "reqwest",
- "serde",
- "serde_json",
- "serde_yaml",
- "symphonia",
- "tempfile",
- "tokio",
-]
 
 [[package]]
 name = "symphonia"

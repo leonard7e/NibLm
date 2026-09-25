@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-/// The main configuration structure for the summarizer application.
+/// The main configuration structure for the niblm application.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
     pub default_model: Option<String>,
@@ -112,9 +112,13 @@ impl Config {
     }
 
     pub fn path() -> anyhow::Result<PathBuf> {
+        if let Ok(env_path) = std::env::var("NIBLM_CONFIG") {
+            return Ok(PathBuf::from(env_path));
+        }
+
         let mut path =
             dirs::config_dir().ok_or_else(|| anyhow::anyhow!("Could not find config directory"))?;
-        path.push("summarizer");
+        path.push("niblm");
         path.push("config.yaml");
         Ok(path)
     }
@@ -137,5 +141,31 @@ mod tests {
             num_ctx: default_ollama_num_ctx(),
         };
         assert_eq!(config.base_url, "http://localhost:11434");
+    }
+
+    #[test]
+    fn test_config_path_default() {
+        // Clear env var if present to test standard path
+        let prev = std::env::var("NIBLM_CONFIG").ok();
+        // SAFETY: Only modifying test process env var in unit test
+        unsafe { std::env::remove_var("NIBLM_CONFIG") };
+        let p = Config::path().unwrap();
+        assert!(p.ends_with("niblm/config.yaml"));
+        if let Some(val) = prev {
+            unsafe { std::env::set_var("NIBLM_CONFIG", val) };
+        }
+    }
+
+    #[test]
+    fn test_config_path_env_override() {
+        let prev = std::env::var("NIBLM_CONFIG").ok();
+        unsafe { std::env::set_var("NIBLM_CONFIG", "/tmp/custom_niblm_config.yaml") };
+        let p = Config::path().unwrap();
+        assert_eq!(p, PathBuf::from("/tmp/custom_niblm_config.yaml"));
+        if let Some(val) = prev {
+            unsafe { std::env::set_var("NIBLM_CONFIG", val) };
+        } else {
+            unsafe { std::env::remove_var("NIBLM_CONFIG") };
+        }
     }
 }

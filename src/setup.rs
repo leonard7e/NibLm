@@ -83,7 +83,7 @@ pub async fn run_initialization() -> Result<()> {
         }
     }
 
-    println!("--- Summarizer Initialization ---");
+    println!("--- NibLM Initialization ---");
 
     let openrouter_key: String = Input::new()
         .with_prompt("OpenRouter API Key (leave empty to skip)")

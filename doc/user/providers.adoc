@@ -1,7 +1,7 @@
 [[providers]]
 == Providers
 
-A _provider_ is a backend that `summarizer` uses to send prompts and receive completions.
+A _provider_ is a backend that `niblm` uses to send prompts and receive completions.
 Providers are selected by the prefix in the model identifier (`provider:model_id`).
 
 === Google Gemini
@@ -11,7 +11,7 @@ The `google` (alias: `gemini`) provider uses the https://ai.google.dev/[Google G
 ==== Setup
 
 1. Create an API key at https://aistudio.google.com/[Google AI Studio].
-2. Add the key to your configuration via `summarizer init` or manually.
+2. Add the key to your configuration via `niblm init` or manually.
 
 ==== Model Format
 
@@ -20,7 +20,7 @@ The `google` (alias: `gemini`) provider uses the https://ai.google.dev/[Google G
 .Examples
 [source,bash]
 ----
-summarizer --model google:gemini-1.5-flash document.txt
+niblm --model google:gemini-1.5-flash document.txt
 ----
 
 ---
@@ -80,5 +80,5 @@ providers:
 .Example
 [source,bash]
 ----
-summarizer --model my-provider:llama3 document.txt
+niblm --model my-provider:llama3 document.txt
 ----

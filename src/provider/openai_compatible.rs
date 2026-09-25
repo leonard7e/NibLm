@@ -26,6 +26,7 @@ impl OpenAiCompatibleProvider {
 
         Ok(Self {
             client: Client::builder()
+                .user_agent(super::USER_AGENT)
                 .default_headers(headers)
                 .build()
                 .map_err(|e| anyhow!("Failed to build HTTP client: {}", e))?,

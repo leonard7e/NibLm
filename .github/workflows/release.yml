@@ -24,19 +24,19 @@ jobs:
       - name: Generate User Manual
         uses: docker://asciidoctor/docker-asciidoctor
         with:
-          args: asciidoctor-pdf -a icons=font doc/user_manual.adoc -o doc/summarizer-${{ env.VERSION }}-user-manual.pdf
+          args: asciidoctor-pdf -a icons=font doc/user_manual.adoc -o doc/niblm-${{ env.VERSION }}-user-manual.pdf
 
       - name: Generate Development Manual
         uses: docker://asciidoctor/docker-asciidoctor
         with:
-          args: asciidoctor-pdf -a icons=font doc/development_manual.adoc -o doc/summarizer-${{ env.VERSION }}-development-manual.pdf
+          args: asciidoctor-pdf -a icons=font doc/development_manual.adoc -o doc/niblm-${{ env.VERSION }}-development-manual.pdf
 
       - uses: actions/upload-artifact@v4
         with:
           name: documentation
           path: |
-            doc/summarizer-${{ env.VERSION }}-user-manual.pdf
-            doc/summarizer-${{ env.VERSION }}-development-manual.pdf
+            doc/niblm-${{ env.VERSION }}-user-manual.pdf
+            doc/niblm-${{ env.VERSION }}-development-manual.pdf
 
   # Build Binaries only
   dist:
@@ -44,13 +44,13 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            bin: summarizer
+            bin: niblm
             triplet: x86_64-linux
           - os: windows-latest
-            bin: summarizer.exe
+            bin: niblm.exe
             triplet: x86_64-windows
           - os: macos-latest
-            bin: summarizer
+            bin: niblm
             triplet: x86_64-macos
 
     runs-on: ${{ matrix.os }}
@@ -61,7 +61,7 @@ jobs:
         shell: bash
         run: |
           VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
-          echo "DIR=summarizer-$VERSION-${{ matrix.triplet }}" >> $GITHUB_ENV
+          echo "DIR=niblm-$VERSION-${{ matrix.triplet }}" >> $GITHUB_ENV
 
       - name: Build
         run: cargo build --release
@@ -94,7 +94,7 @@ jobs:
           # Copy PDFs
           cp artifacts/documentation/*.pdf release-assets/
           # Zip binaries
-          for dir in artifacts/summarizer-*; do
+          for dir in artifacts/niblm-*; do
             if [ -d "$dir" ]; then
               base=$(basename "$dir")
               (cd "$dir" && zip -r "../../release-assets/$base.zip" .)

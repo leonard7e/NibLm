@@ -49,7 +49,7 @@ async fn main() -> Result<()> {
                         .filter(|b| !b.is_empty())
                         .map(|b| -> Result<_> {
                             let mut temp_file = tempfile::Builder::new()
-                                .prefix("summarizer_stdin_")
+                                .prefix("niblm_stdin_")
                                 .suffix(".txt")
                                 .tempfile()?;
                             temp_file.write_all(b.as_bytes())?;
@@ -62,7 +62,7 @@ async fn main() -> Result<()> {
                 }
             };
             if files.is_empty() {
-                println!("No files provided. Use `summarizer --help` for usage.");
+                println!("No files provided. Use `niblm --help` for usage.");
                 return Ok(());
             }
 

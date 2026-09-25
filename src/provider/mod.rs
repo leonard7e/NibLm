@@ -38,6 +38,7 @@ pub enum PromptPart {
 }
 
 pub const DEFAULT_CONTEXT_LIMIT: usize = 8192;
+pub const USER_AGENT: &str = concat!("niblm/", env!("CARGO_PKG_VERSION"));
 
 /// Common trait implemented by all language model providers to standardize interactions.
 #[async_trait]

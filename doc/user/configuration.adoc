@@ -10,16 +10,18 @@ The configuration file is stored at the platform-specific user configuration dir
 | Platform | Path
 
 | Linux
-| `~/.config/summarizer/config.yaml`
+| `~/.config/niblm/config.yaml`
 
 | macOS
-| `~/Library/Application Support/summarizer/config.yaml`
+| `~/Library/Application Support/niblm/config.yaml`
 
 | Windows
-| `%APPDATA%\summarizer\config.yaml`
+| `%APPDATA%\niblm\config.yaml`
 |===
 
-The file is created automatically with default values when `summarizer` runs for the first time, or when you run `summarizer init`.
+The configuration file path can also be overridden using the `NIBLM_CONFIG` environment variable.
+
+The file is created automatically with default values when `niblm` runs for the first time, or when you run `niblm init`.
 
 [IMPORTANT]
 ====
@@ -156,11 +158,11 @@ Use the built-in subcommands to manage the configuration interactively:
 [source,bash]
 ----
 # Full setup wizard
-summarizer init
+niblm init
 
 # Change only the default model
-summarizer default-model
+niblm default-model
 
 # Check reachable models
-summarizer list-models
+niblm list-models
 ----

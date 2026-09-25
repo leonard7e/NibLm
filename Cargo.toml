@@ -1,8 +1,10 @@
 [package]
-name = "summarizer"
+name = "niblm"
 version = "0.5.0"
 edition = "2024"
 license = "Apache-2.0"
+description = "Iteratively digest and summarize massive file sets using LLMs"
+repository = "https://github.com/leonard7e/niblm"
 
 [dependencies]
 anyhow = "1.0.102"

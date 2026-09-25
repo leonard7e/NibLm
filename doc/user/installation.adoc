@@ -13,12 +13,12 @@
 
 [source,bash]
 ----
-git clone <repository-url>
-cd summarizer
+git clone https://github.com/leonard7e/niblm.git
+cd niblm
 cargo build --release
 ----
 
-The compiled binary will be at `./target/release/summarizer`.
+The compiled binary will be at `./target/release/niblm`.
 
 === Install to `$PATH`
 

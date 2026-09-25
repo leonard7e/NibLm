@@ -15,7 +15,10 @@ impl GeminiProvider {
     pub fn new(api_key: String) -> Self {
         Self {
             api_key,
-            client: Client::new(),
+            client: Client::builder()
+                .user_agent(super::USER_AGENT)
+                .build()
+                .unwrap_or_default(),
             base_url: "https://generativelanguage.googleapis.com".to_string(),
         }
     }
@@ -24,7 +27,10 @@ impl GeminiProvider {
     pub fn with_base_url(api_key: String, base_url: String) -> Self {
         Self {
             api_key,
-            client: Client::new(),
+            client: Client::builder()
+                .user_agent(super::USER_AGENT)
+                .build()
+                .unwrap_or_default(),
             base_url: base_url.trim_end_matches('/').to_string(),
         }
     }

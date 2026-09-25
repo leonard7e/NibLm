@@ -1,7 +1,7 @@
 [[architecture]]
 == Architecture
 
-This chapter explains the internal mechanics of `summarizer` — how it handles files, calculates the token budget, and builds prompts.
+This chapter explains the internal mechanics of `niblm` — how it handles files, calculates the token budget, and builds prompts.
 
 === High-Level Flow
 
@@ -62,7 +62,7 @@ A small `max_output_tokens` can lead to truncated summaries if the model needs m
 
 === Multimodal Support
 
-`summarizer` supports text, images, audio, and video.
+`niblm` supports text, images, audio, and video.
 - **Images**: Sent as base64-encoded data.
 - **Audio/Video**: Token cost is estimated based on duration if the provider doesn't support direct upload, or handled via provider-specific APIs (like Gemini's file API).
 

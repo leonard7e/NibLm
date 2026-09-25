@@ -12,7 +12,13 @@ pub enum BatchingMode {
 }
 
 #[derive(Parser)]
-#[command(author, version, about = "Iterativly summarize multiple text files using LLMs.", long_about = None)]
+#[command(
+    name = "niblm",
+    author,
+    version,
+    about = "Iteratively digest and summarize multiple files using LLMs.",
+    long_about = None
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,

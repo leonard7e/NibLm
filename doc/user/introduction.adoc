@@ -1,14 +1,22 @@
 [[introduction]]
 == Introduction
 
-`summarizer` is a command-line tool that sends the contents of text files or media files (images, audio, video) to a large language model (LLM) and prints the model's response.
+`niblm` is a command-line tool that sends the contents of text files or media files (images, audio, video) to a large language model (LLM) and prints the model's response.
+
+=== Why NibLM?
+
+The original project name "Summarizer" was overly generic and did not reflect the tool's specialized workflow.
+
+**NibLM** stands for **Nibble LLM** (*Nibbling Language Model*).
+
+The "Nibble" metaphor reflects the tool's core philosophy: taking manageable "bites" out of massive datasets, batching content to respect model context constraints, and iteratively ingesting and digesting files into concise, high-fidelity results.
 
 === Motivation
 
 Most LLMs have a finite _context window_ — the maximum number of tokens (roughly: characters) that can be processed in a single request.
 When you want to summarize a large body of text — such as a long document, a collection of log files, or the concatenated output of many reports — the content often exceeds that limit.
 
-`summarizer` solves this with an *iterative batching* strategy:
+`niblm` solves this with an *iterative batching* strategy:
 
 1. Files are grouped into batches that fit within the model's context window.
 2. Each batch is sent to the model together with the result of the previous batch.

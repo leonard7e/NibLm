@@ -5,11 +5,11 @@
 
 [source]
 ----
-summarizer [OPTIONS] [FILES]...
-summarizer <SUBCOMMAND>
+niblm [OPTIONS] [FILES]...
+niblm <SUBCOMMAND>
 ----
 
-If no `FILES` are provided and the input is piped, `summarizer` reads from standard input (stdin).
+If no `FILES` are provided and the input is piped, `niblm` reads from standard input (stdin).
 
 === Arguments
 
@@ -63,7 +63,7 @@ If no `FILES` are provided and the input is piped, `summarizer` reads from stand
 | Subcommand | Description
 
 | `init`
-| Run the interactive setup wizard. Collects API keys and lets you choose a default model. Creates or overwrites `~/.config/summarizer/config.yaml`.
+| Run the interactive setup wizard. Collects API keys and lets you choose a default model. Creates or overwrites `~/.config/niblm/config.yaml`.
 
 | `list-models`
 | Query all configured providers and print the available model IDs, prefixed with `provider:`.
@@ -74,7 +74,7 @@ If no `FILES` are provided and the input is piped, `summarizer` reads from stand
 
 === Supported Media Types
 
-`summarizer` supports more than just text. You can pass the following file types:
+`niblm` supports more than just text. You can pass the following file types:
 
 * **Images**: `png`, `jpg`, `jpeg`, `webp`, `gif`
 * **Audio**: `mp3`, `wav`, `flac`, `ogg`, `m4a`, `aac`
@@ -90,29 +90,29 @@ Ensure the selected model supports the respective media type. Gemini models typi
 .Summarize from stdin
 [source,bash]
 ----
-cat report.txt | summarizer
+cat report.txt | niblm
 ----
 
 .Summarize an image
 [source,bash]
 ----
-summarizer screenshot.png -p "Describe this image in detail."
+niblm screenshot.png -p "Describe this image in detail."
 ----
 
 .Summarize a video
 [source,bash]
 ----
-summarizer presentation.mp4 -p "What are the main points discussed?"
+niblm presentation.mp4 -p "What are the main points discussed?"
 ----
 
 .Summarize multiple files with a custom prompt
 [source,bash]
 ----
-summarizer -p "List all decisions made." minutes_*.txt
+niblm -p "List all decisions made." minutes_*.txt
 ----
 
 .Debug mode to inspect batching
 [source,bash]
 ----
-summarizer --debug document.pdf.txt
+niblm --debug document.pdf.txt
 ----

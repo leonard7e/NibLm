@@ -1,16 +1,25 @@
-# summarizer
+# NibLM (`niblm`)
 
-A command-line tool that iteratively summarizes multiple text files using large language models (LLMs).
+A command-line tool that iteratively digests and summarizes multiple files using large language models (LLMs).
 
-When the combined content of your files exceeds a model's context window, `summarizer` automatically splits them into batches and feeds each batch to the model along with the result of the previous iteration — building up a coherent, rolling summary.
+When the combined content of your files exceeds a model's context window, `niblm` automatically splits them into batches and feeds each batch to the model along with the result of the previous iteration — building up a coherent, rolling summary.
+
+### Why NibLM?
+
+The original name "Summarizer" was overly generic and diluted the project's identity.
+
+**NibLM** stands for **Nibble LLM** (*Nibbling Language Model*).
+
+The "Nibble" metaphor reflects the tool's core philosophy: taking manageable "bites" out of massive datasets, batching content to respect model context constraints, and iteratively ingesting and digesting files into concise, high-fidelity results.
 
 ## Features
 
 - **Iterative batching** — handles arbitrarily large file sets by chaining batches
 - **Multiple providers** — Google Gemini, OpenRouter, Ollama (local), and any OpenAI-compatible API
+- **Multi-modal inputs** — supports text, images, audio, and video files
 - **Custom prompts** — pass an instruction via `--prompt` or a prompt file via `--prompt-file`
 - **Model selection** — specify any model at runtime with `--model provider:model_id`
-- **Interactive setup** — `summarizer init` walks you through configuration
+- **Interactive setup** — `niblm init` walks you through configuration
 
 ## Quick Start
 
@@ -18,13 +27,13 @@ When the combined content of your files exceeds a model's context window, `summa
 
 ```bash
 cargo build --release
-# Binary: ./target/release/summarizer
+# Binary: ./target/release/niblm
 ```
 
 ### 2. Configure
 
 ```bash
-summarizer init
+niblm init
 ```
 
 This walks you through entering your API keys and selecting a default model.
@@ -33,13 +42,13 @@ This walks you through entering your API keys and selecting a default model.
 
 ```bash
 # Summarize a single file
-summarizer report.txt
+niblm report.txt
 
 # Summarize multiple files with a custom prompt
-summarizer -p "List the key action items." meeting1.txt meeting2.txt meeting3.txt
+niblm -p "List the key action items." meeting1.txt meeting2.txt meeting3.txt
 
 # Use a model different from the default
-summarizer --model ollama:llama3 notes.txt
+niblm --model ollama:llama3 notes.txt
 ```
 
 ## Documentation
@@ -77,7 +86,7 @@ Install the tools with: `gem install asciidoctor asciidoctor-pdf`
 
 ## Configuration
 
-The configuration file is stored at `~/.config/summarizer/config.yaml` (Linux/macOS) and is created automatically on first run. See the [User Manual](doc/user_manual.adoc#configuration) for the full field reference.
+The configuration file is stored at `~/.config/niblm/config.yaml` (Linux/macOS) and is created automatically on first run. See the [User Manual](doc/user_manual.adoc#configuration) for the full field reference.
 
 ## License
 
