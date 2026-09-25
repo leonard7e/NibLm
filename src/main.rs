@@ -4,6 +4,7 @@ mod engine;
 mod file;
 mod provider;
 mod setup;
+mod thinking;
 
 use anyhow::Result;
 use clap::Parser;
@@ -71,6 +72,13 @@ async fn main() -> Result<()> {
                 .or(config.default_model.clone())
                 .unwrap_or_else(|| "ollama:llama3".to_string());
 
+            let thinking = cli
+                .thinking
+                .as_deref()
+                .map(|s| s.parse::<crate::thinking::ThinkingLevel>())
+                .transpose()?
+                .unwrap_or_else(|| config.thinking.clone());
+
             let file_prompt = cli
                 .prompt_file
                 .map(|f| std::fs::read_to_string(&f))
@@ -93,6 +101,7 @@ async fn main() -> Result<()> {
                 &final_prompt,
                 cli.batching_mode,
                 cli.max_concurrency,
+                thinking,
             )
             .await
         }

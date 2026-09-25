@@ -2,6 +2,8 @@ use crate::config::Config;
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 
+pub use crate::thinking::ThinkingLevel;
+
 pub mod gemini;
 pub mod ollama;
 pub mod openai_compatible;
@@ -48,6 +50,7 @@ pub trait LlmProvider {
         system_instruction: &str,
         user_parts: &[PromptPart],
         model: &str,
+        thinking: &ThinkingLevel,
     ) -> Result<String>;
 
     async fn list_models(&self) -> Result<Vec<String>>;

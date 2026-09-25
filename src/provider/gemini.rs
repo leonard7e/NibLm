@@ -5,6 +5,8 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
+use crate::thinking::ThinkingLevel;
+
 pub struct GeminiProvider {
     api_key: String,
     client: Client,
@@ -41,6 +43,20 @@ struct GeminiRequest {
     #[serde(rename = "systemInstruction", skip_serializing_if = "Option::is_none")]
     system_instruction: Option<GeminiContent>,
     contents: Vec<GeminiContent>,
+    #[serde(rename = "generationConfig", skip_serializing_if = "Option::is_none")]
+    generation_config: Option<GeminiGenerationConfig>,
+}
+
+#[derive(Serialize)]
+struct GeminiGenerationConfig {
+    #[serde(rename = "thinkingConfig", skip_serializing_if = "Option::is_none")]
+    thinking_config: Option<GeminiThinkingConfig>,
+}
+
+#[derive(Serialize)]
+struct GeminiThinkingConfig {
+    #[serde(rename = "thinkingBudget")]
+    thinking_budget: i32,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -85,6 +101,7 @@ impl LlmProvider for GeminiProvider {
         system_instruction: &str,
         prompt_parts: &[PromptPart],
         model: &str,
+        thinking: &ThinkingLevel,
     ) -> Result<String> {
         let url = format!(
             "{}/v1beta/models/{}:generateContent?key={}",
@@ -133,9 +150,16 @@ impl LlmProvider for GeminiProvider {
             None
         };
 
+        let generation_config = thinking.token_budget().map(|budget| GeminiGenerationConfig {
+            thinking_config: Some(GeminiThinkingConfig {
+                thinking_budget: budget as i32,
+            }),
+        });
+
         let req_body = GeminiRequest {
             system_instruction: sys_instr,
             contents: vec![GeminiContent { parts }],
+            generation_config,
         };
 
         let res = self.client.post(&url).json(&req_body).send().await?;
@@ -231,6 +255,46 @@ mod tests {
     use super::*;
     use mockito::Server;
 
+    #[test]
+    fn test_gemini_thinking_config_off() {
+        let config = ThinkingLevel::Off.token_budget().map(|budget| GeminiGenerationConfig {
+            thinking_config: Some(GeminiThinkingConfig {
+                thinking_budget: budget as i32,
+            }),
+        });
+        assert!(config.is_none());
+    }
+
+    #[test]
+    fn test_gemini_thinking_config_low() {
+        let config = ThinkingLevel::Low.token_budget().map(|budget| GeminiGenerationConfig {
+            thinking_config: Some(GeminiThinkingConfig {
+                thinking_budget: budget as i32,
+            }),
+        });
+        assert_eq!(config.unwrap().thinking_config.unwrap().thinking_budget, 1024);
+    }
+
+    #[test]
+    fn test_gemini_thinking_config_high() {
+        let config = ThinkingLevel::High.token_budget().map(|budget| GeminiGenerationConfig {
+            thinking_config: Some(GeminiThinkingConfig {
+                thinking_budget: budget as i32,
+            }),
+        });
+        assert_eq!(config.unwrap().thinking_config.unwrap().thinking_budget, 32_000);
+    }
+
+    #[test]
+    fn test_gemini_thinking_config_custom() {
+        let config = ThinkingLevel::Custom(4096).token_budget().map(|budget| GeminiGenerationConfig {
+            thinking_config: Some(GeminiThinkingConfig {
+                thinking_budget: budget as i32,
+            }),
+        });
+        assert_eq!(config.unwrap().thinking_config.unwrap().thinking_budget, 4096);
+    }
+
     #[tokio::test]
     async fn test_gemini_complete() {
         let mut server = Server::new_async().await;
@@ -261,7 +325,7 @@ mod tests {
             .await;
 
         let result = provider
-            .complete("", &[PromptPart::Text("Prompt".to_string())], "test-model")
+            .complete("", &[PromptPart::Text("Prompt".to_string())], "test-model", &ThinkingLevel::Off)
             .await
             .unwrap();
         assert_eq!(result, "Zusammenfassung");
@@ -292,7 +356,7 @@ mod tests {
             .await;
 
         let result = provider
-            .complete("", &[PromptPart::Text("Prompt".to_string())], "test-model")
+            .complete("", &[PromptPart::Text("Prompt".to_string())], "test-model", &ThinkingLevel::Off)
             .await;
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();

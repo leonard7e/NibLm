@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+use crate::thinking::ThinkingLevel;
+
 /// The main configuration structure for the niblm application.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
@@ -12,6 +14,10 @@ pub struct Config {
     pub max_output_tokens: usize,
     #[serde(default)]
     pub providers: ProvidersConfig,
+
+    /// Default thinking level for all requests. Can be overridden with --thinking.
+    #[serde(default)]
+    pub thinking: ThinkingLevel,
 }
 
 fn default_max_output_tokens() -> usize {
@@ -24,6 +30,7 @@ impl Default for Config {
             default_model: None,
             max_output_tokens: default_max_output_tokens(),
             providers: ProvidersConfig::default(),
+            thinking: ThinkingLevel::default(),
         }
     }
 }
@@ -132,6 +139,7 @@ mod tests {
         let config = Config::default();
         assert!(config.default_model.is_none());
         assert_eq!(config.max_output_tokens, 4096);
+        assert_eq!(config.thinking, ThinkingLevel::Off);
     }
 
     #[test]

@@ -5,6 +5,8 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
+use crate::thinking::ThinkingLevel;
+
 pub struct OllamaProvider {
     base_url: String,
     num_ctx: usize,
@@ -38,6 +40,7 @@ struct OllamaRequest<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     images: Option<Vec<String>>,
     stream: bool,
+    think: bool,
     options: OllamaOptions,
 }
 
@@ -65,6 +68,7 @@ impl LlmProvider for OllamaProvider {
         system_instruction: &str,
         prompt_parts: &[PromptPart],
         model: &str,
+        thinking: &ThinkingLevel,
     ) -> Result<String> {
         let (prompt_text, images): (String, Vec<String>) =
             prompt_parts
@@ -82,12 +86,15 @@ impl LlmProvider for OllamaProvider {
 
         let sys_opt = (!system_instruction.is_empty()).then(|| system_instruction.to_string());
 
+        let think = thinking.token_budget().is_some();
+
         let req_body = OllamaRequest {
             model,
             prompt: prompt_text,
             system: sys_opt,
             images: images_opt,
             stream: false,
+            think,
             options: OllamaOptions {
                 num_ctx: self.num_ctx,
             },
@@ -200,6 +207,15 @@ mod tests {
     use super::*;
     use mockito::Server;
 
+    #[test]
+    fn test_ollama_think_flag_from_thinking_level() {
+        assert!(!ThinkingLevel::Off.token_budget().is_some());
+        assert!(ThinkingLevel::Low.token_budget().is_some());
+        assert!(ThinkingLevel::Medium.token_budget().is_some());
+        assert!(ThinkingLevel::High.token_budget().is_some());
+        assert!(ThinkingLevel::Custom(0).token_budget().is_some());
+    }
+
     #[tokio::test]
     async fn test_ollama_complete() {
         let mut server = Server::new_async().await;
@@ -215,7 +231,7 @@ mod tests {
             .await;
 
         let result = provider
-            .complete("", &[PromptPart::Text("Prompt".to_string())], "test-model")
+            .complete("", &[PromptPart::Text("Prompt".to_string())], "test-model", &ThinkingLevel::Off)
             .await
             .unwrap();
         assert_eq!(result, "Ollama Zusammenfassung");
@@ -236,7 +252,7 @@ mod tests {
             .await;
 
         let result = provider
-            .complete("", &[PromptPart::Text("Prompt".to_string())], "test-model")
+            .complete("", &[PromptPart::Text("Prompt".to_string())], "test-model", &ThinkingLevel::Off)
             .await;
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();

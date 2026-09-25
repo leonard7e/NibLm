@@ -5,6 +5,21 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use reqwest::{Client, header};
 use serde::{Deserialize, Serialize};
 
+use crate::thinking::ThinkingLevel;
+
+/// Maps a `ThinkingLevel` to the OpenAI-compatible `reasoning_effort` string.
+/// Returns `None` when thinking is disabled.
+fn thinking_to_reasoning_effort(thinking: &ThinkingLevel) -> Option<&'static str> {
+    match thinking {
+        ThinkingLevel::Off => None,
+        ThinkingLevel::Low => Some("low"),
+        ThinkingLevel::Medium => Some("medium"),
+        // Custom token budgets are not natively supported in the OpenAI-compatible
+        // API; map to the highest effort level as a best-effort approximation.
+        ThinkingLevel::High | ThinkingLevel::Custom(_) => Some("high"),
+    }
+}
+
 pub struct OpenAiCompatibleProvider {
     client: Client,
     base_url: String,
@@ -39,6 +54,8 @@ impl OpenAiCompatibleProvider {
 struct ChatCompletionRequest<'a> {
     model: &'a str,
     messages: Vec<Message<'a>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reasoning_effort: Option<&'static str>,
 }
 
 #[derive(Serialize)]
@@ -104,6 +121,7 @@ impl LlmProvider for OpenAiCompatibleProvider {
         system_instruction: &str,
         prompt_parts: &[PromptPart],
         model: &str,
+        thinking: &ThinkingLevel,
     ) -> Result<String> {
         let content_parts: Vec<OpenAiContentPart> = prompt_parts
             .iter()
@@ -142,7 +160,8 @@ impl LlmProvider for OpenAiCompatibleProvider {
             content: content_parts,
         });
 
-        let req_body = ChatCompletionRequest { model, messages };
+        let reasoning_effort = thinking_to_reasoning_effort(thinking);
+        let req_body = ChatCompletionRequest { model, messages, reasoning_effort };
 
         let url = format!("{}/chat/completions", self.base_url);
 
@@ -287,6 +306,26 @@ mod tests {
     use super::*;
     use mockito::Server;
 
+    #[test]
+    fn test_thinking_to_reasoning_effort_off() {
+        assert_eq!(thinking_to_reasoning_effort(&ThinkingLevel::Off), None);
+    }
+
+    #[test]
+    fn test_thinking_to_reasoning_effort_levels() {
+        assert_eq!(thinking_to_reasoning_effort(&ThinkingLevel::Low), Some("low"));
+        assert_eq!(thinking_to_reasoning_effort(&ThinkingLevel::Medium), Some("medium"));
+        assert_eq!(thinking_to_reasoning_effort(&ThinkingLevel::High), Some("high"));
+    }
+
+    #[test]
+    fn test_thinking_to_reasoning_effort_custom() {
+        assert_eq!(
+            thinking_to_reasoning_effort(&ThinkingLevel::Custom(4096)),
+            Some("high")
+        );
+    }
+
     #[tokio::test]
     async fn test_openai_compatible_complete() {
         let mut server = Server::new_async().await;
@@ -312,7 +351,7 @@ mod tests {
             .await;
 
         let result = provider
-            .complete("", &[PromptPart::Text("Prompt".to_string())], "test-model")
+            .complete("", &[PromptPart::Text("Prompt".to_string())], "test-model", &ThinkingLevel::Off)
             .await
             .unwrap();
         assert_eq!(result, "Compatible Zusammenfassung");
@@ -340,7 +379,7 @@ mod tests {
             .await;
 
         let result = provider
-            .complete("", &[PromptPart::Text("Prompt".to_string())], "test-model")
+            .complete("", &[PromptPart::Text("Prompt".to_string())], "test-model", &ThinkingLevel::Off)
             .await;
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();

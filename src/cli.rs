@@ -50,6 +50,11 @@ pub struct Cli {
     /// Maximum number of concurrent LLM requests (1 = fully sequential)
     #[arg(long, default_value = "1", value_name = "N")]
     pub max_concurrency: usize,
+
+    /// Thinking/reasoning level: off, low, medium, high, or a custom token budget (integer).
+    /// Overrides the default configured in config.yaml.
+    #[arg(long, value_name = "LEVEL")]
+    pub thinking: Option<String>,
 }
 
 #[derive(Subcommand)]

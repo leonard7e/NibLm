@@ -2,6 +2,7 @@ use crate::cli::BatchingMode;
 use crate::config::Config;
 use crate::file::{self, FileData, FileType, ProcessedFile};
 use crate::provider::{LlmProvider, ModelId, PromptPart, create_provider};
+use crate::thinking::ThinkingLevel;
 use anyhow::{Result, anyhow, ensure};
 use std::path::PathBuf;
 
@@ -424,10 +425,11 @@ async fn complete_all(
     prompts: &[(String, Vec<PromptPart>)],
     provider: &dyn LlmProvider,
     model: &str,
+    thinking: &ThinkingLevel,
 ) -> Result<Vec<String>> {
     let futures: Vec<_> = prompts
         .iter()
-        .map(|(sys, usr)| provider.complete(sys, usr, model))
+        .map(|(sys, usr)| provider.complete(sys, usr, model, thinking))
         .collect();
     futures::future::join_all(futures)
         .await
@@ -443,6 +445,7 @@ async fn run_linear_mode(
     api_limit: usize,
     instruction: &str,
     debug: bool,
+    thinking: &ThinkingLevel,
 ) -> Result<String> {
     // Budget for the *first* batch: previous_result is None yet, but we
     // conservatively assume the output may grow up to max_output_tokens chars,
@@ -520,7 +523,7 @@ async fn run_linear_mode(
             build_prompt(instruction, &current_batch, previous_result.as_deref());
         previous_result = Some(
             provider
-                .complete(&system_prompt, &user_prompt, &model_id.model)
+                .complete(&system_prompt, &user_prompt, &model_id.model, thinking)
                 .await?,
         );
     }
@@ -541,6 +544,7 @@ async fn process_level_zero(
     instruction: &str,
     max_concurrency: usize,
     debug: bool,
+    thinking: &ThinkingLevel,
 ) -> Result<Vec<String>> {
     let file_budget = compute_file_budget(api_limit, max_output_tokens, instruction, None);
 
@@ -604,7 +608,7 @@ async fn process_level_zero(
             .iter()
             .map(|batch| build_prompt(instruction, batch, None))
             .collect();
-        results.extend(complete_all(&prompts, provider, model).await?);
+        results.extend(complete_all(&prompts, provider, model, thinking).await?);
     }
 
     Ok(results)
@@ -622,6 +626,7 @@ async fn merge_results_until_single(
     instruction: &str,
     max_concurrency: usize,
     debug: bool,
+    thinking: &ThinkingLevel,
 ) -> Result<String> {
     let concurrency = max_concurrency.max(1);
     let mut current_results = initial_results;
@@ -668,7 +673,7 @@ async fn merge_results_until_single(
                 .iter()
                 .map(|batch| build_prompt_from_texts(instruction, batch))
                 .collect();
-            next_results.extend(complete_all(&prompts, provider, model).await?);
+            next_results.extend(complete_all(&prompts, provider, model, thinking).await?);
         }
 
         current_results = next_results;
@@ -690,6 +695,7 @@ async fn run_tree_mode(
     instruction: &str,
     max_concurrency: usize,
     debug: bool,
+    thinking: &ThinkingLevel,
 ) -> Result<String> {
     let level0_results = process_level_zero(
         files,
@@ -700,6 +706,7 @@ async fn run_tree_mode(
         instruction,
         max_concurrency,
         debug,
+        thinking,
     )
     .await?;
 
@@ -712,6 +719,7 @@ async fn run_tree_mode(
         instruction,
         max_concurrency,
         debug,
+        thinking,
     )
     .await
 }
@@ -727,6 +735,7 @@ pub async fn run_summarize_loop(
     instruction: &str,
     batching_mode: BatchingMode,
     max_concurrency: usize,
+    thinking: ThinkingLevel,
 ) -> Result<()> {
     ensure!(!files.is_empty(), "No files provided.");
 
@@ -762,6 +771,7 @@ pub async fn run_summarize_loop(
                 instruction,
                 max_concurrency,
                 debug,
+                &thinking,
             )
             .await?;
             println!("{}", result);
@@ -776,6 +786,7 @@ pub async fn run_summarize_loop(
                 api_limit,
                 instruction,
                 debug,
+                &thinking,
             )
             .await?;
             println!("{}", result);
