@@ -4,7 +4,7 @@ use crate::file::{self, FileData, FileType, ProcessedFile};
 use crate::provider::{LlmProvider, ModelId, PromptPart, create_provider};
 use crate::thinking::ThinkingLevel;
 use anyhow::{Result, anyhow, ensure};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Rough chars-per-token ratio for typical UTF-8 prose / code.
 const CHARS_PER_TOKEN: usize = 4;
@@ -437,6 +437,54 @@ async fn complete_all(
         .collect()
 }
 
+/// Loads and validates a single file: checks existence, reads content,
+/// and verifies provider media capabilities. Returns `Ok(None)` if the file
+/// does not exist or fails to read (logging a warning to stderr).
+async fn load_and_validate_file(
+    path: &Path,
+    provider: &dyn LlmProvider,
+    model: &str,
+) -> Result<Option<ProcessedFile>> {
+    if !path.exists() {
+        eprintln!("Warning: File not found: {}", path.display());
+        return Ok(None);
+    }
+
+    match file::read_file(path).await {
+        Ok(processed) => {
+            check_file_media_support(&processed, provider, model).await?;
+            Ok(Some(processed))
+        }
+        Err(e) => {
+            eprintln!("Warning: {} – Skipping: {}", e, path.display());
+            Ok(None)
+        }
+    }
+}
+
+/// Prints diagnostic budgeting and token cost metrics for a single batch.
+fn log_batch_debug(
+    batch_idx: usize,
+    total_batches: usize,
+    api_limit: usize,
+    max_output_tokens: usize,
+    instruction: &str,
+    previous_result: Option<&str>,
+    batch: &[ProcessedFile],
+) {
+    let file_budget =
+        compute_file_budget(api_limit, max_output_tokens, instruction, previous_result);
+    let batch_cost: usize = batch.iter().map(estimate_file_cost).sum();
+    eprintln!(
+        "[Batch {}/{}] file budget: {} chars (~{} tokens), batch content: ~{} tokens",
+        batch_idx + 1,
+        total_batches,
+        file_budget,
+        file_budget / CHARS_PER_TOKEN,
+        batch_cost / CHARS_PER_TOKEN,
+    );
+}
+
 async fn run_linear_mode(
     files: Vec<PathBuf>,
     provider: &dyn LlmProvider,
@@ -462,35 +510,25 @@ async fn run_linear_mode(
     let mut processed_count = 0;
 
     for (batch_idx, batch_paths) in batches.iter().enumerate() {
-        let mut current_batch: Vec<ProcessedFile> = Vec::new();
+        let mut current_batch: Vec<ProcessedFile> = Vec::with_capacity(batch_paths.len());
 
         for file_path in batch_paths {
             processed_count += 1;
 
-            if !file_path.exists() {
-                eprintln!("Warning: File not found: {}", file_path.display());
-                continue;
-            }
-
-            match file::read_file(file_path).await {
-                Ok(processed) => {
-                    check_file_media_support(&processed, provider, &model_id.model).await?;
-
-                    if debug {
-                        let file_cost = estimate_file_cost(&processed);
-                        eprintln!(
-                            "[{}/{}] Adding to batch: {} (~{} tokens)",
-                            processed_count,
-                            total_files,
-                            file_path.display(),
-                            file_cost / CHARS_PER_TOKEN,
-                        );
-                    }
-                    current_batch.push(processed);
+            if let Some(processed) =
+                load_and_validate_file(file_path, provider, &model_id.model).await?
+            {
+                if debug {
+                    let file_cost = estimate_file_cost(&processed);
+                    eprintln!(
+                        "[{}/{}] Adding to batch: {} (~{} tokens)",
+                        processed_count,
+                        total_files,
+                        file_path.display(),
+                        file_cost / CHARS_PER_TOKEN,
+                    );
                 }
-                Err(e) => {
-                    eprintln!("Warning: {} - Skipping: {}", e, file_path.display());
-                }
+                current_batch.push(processed);
             }
         }
 
@@ -502,20 +540,14 @@ async fn run_linear_mode(
         eprint!("{}% ", (batch_idx * 100) / batches.len());
 
         if debug {
-            let file_budget = compute_file_budget(
+            log_batch_debug(
+                batch_idx,
+                batches.len(),
                 api_limit,
                 config.max_output_tokens,
                 instruction,
                 previous_result.as_deref(),
-            );
-            let batch_cost: usize = current_batch.iter().map(estimate_file_cost).sum();
-            eprintln!(
-                "[Batch {}/{}] file budget: {} chars (~{} tokens), batch content: ~{} tokens",
-                batch_idx + 1,
-                batches.len(),
-                file_budget,
-                file_budget / CHARS_PER_TOKEN,
-                batch_cost / CHARS_PER_TOKEN,
+                &current_batch,
             );
         }
 
@@ -566,20 +598,10 @@ async fn process_level_zero(
     // Read all files for Level 0 batches.
     let mut processed_batches: Vec<Vec<ProcessedFile>> = Vec::with_capacity(total_batches);
     for batch_paths in path_batches {
-        let mut batch_files: Vec<ProcessedFile> = Vec::new();
+        let mut batch_files: Vec<ProcessedFile> = Vec::with_capacity(batch_paths.len());
         for file_path in &batch_paths {
-            if !file_path.exists() {
-                eprintln!("Warning: File not found: {}", file_path.display());
-                continue;
-            }
-            match file::read_file(file_path).await {
-                Ok(processed) => {
-                    check_file_media_support(&processed, provider, model).await?;
-                    batch_files.push(processed);
-                }
-                Err(e) => {
-                    eprintln!("Warning: {} – Skipping: {}", e, file_path.display());
-                }
+            if let Some(processed) = load_and_validate_file(file_path, provider, model).await? {
+                batch_files.push(processed);
             }
         }
         if !batch_files.is_empty() {
@@ -1070,5 +1092,54 @@ mod tests {
         assert_eq!(estimate_file_cost(&audio), 0);
         let video = make_video_file(0.0);
         assert_eq!(estimate_file_cost(&video), 0);
+    }
+
+    // --------------------------------------------------------------------
+    // load_and_validate_file
+    // --------------------------------------------------------------------
+
+    use crate::provider::mock::MockProvider;
+
+    #[tokio::test]
+    async fn test_load_and_validate_file_missing_returns_none() {
+        let provider = MockProvider::new();
+        let non_existent = Path::new("non_existent_test_file_xyz_123.txt");
+        let result = load_and_validate_file(non_existent, &provider, "test-model").await;
+        match result {
+            Ok(opt) => assert!(opt.is_none()),
+            Err(e) => panic!("Expected Ok(None), got error: {e}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_load_and_validate_file_existing_text() {
+        use std::io::Write;
+        let provider = MockProvider::new();
+        let mut tmp = tempfile::NamedTempFile::new().unwrap();
+        write!(tmp, "sample text content").unwrap();
+
+        let result = load_and_validate_file(tmp.path(), &provider, "test-model").await;
+        match result {
+            Ok(Some(file)) => match file.data {
+                FileData::Text(ref text) => assert_eq!(text, "sample text content"),
+                _ => panic!("Expected text data"),
+            },
+            Ok(None) => panic!("Expected Some(file), got None"),
+            Err(e) => panic!("Expected Ok, got error: {e}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_load_and_validate_file_unsupported_media_fails() {
+        use std::io::Write;
+        let provider = MockProvider::new().with_supports_images(false);
+        let mut tmp = tempfile::Builder::new().suffix(".png").tempfile().unwrap();
+        write!(tmp, "dummy-image-bytes").unwrap();
+
+        let result = load_and_validate_file(tmp.path(), &provider, "test-model").await;
+        match result {
+            Err(err) => assert!(err.to_string().contains("does not support image analysis")),
+            Ok(_) => panic!("Expected error for unsupported media"),
+        }
     }
 }

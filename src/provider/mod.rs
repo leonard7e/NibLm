@@ -8,6 +8,9 @@ pub mod gemini;
 pub mod ollama;
 pub mod openai_compatible;
 
+#[cfg(test)]
+pub mod mock;
+
 /// Represents a parsed model identifier combining the provider name and the specific model.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModelId {
