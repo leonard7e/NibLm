@@ -51,12 +51,14 @@ struct GeminiRequest {
 struct GeminiGenerationConfig {
     #[serde(rename = "thinkingConfig", skip_serializing_if = "Option::is_none")]
     thinking_config: Option<GeminiThinkingConfig>,
+    // Sampling parameters `temperature`, `top_p`, and `top_k` are deliberately omitted
+    // to adhere to Gemini API specs and prevent 400 INVALID_ARGUMENT errors.
 }
 
 #[derive(Serialize)]
 struct GeminiThinkingConfig {
-    #[serde(rename = "thinkingBudget")]
-    thinking_budget: i32,
+    #[serde(rename = "thinking_level")]
+    thinking_level: &'static str,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -92,6 +94,45 @@ struct GeminiCandidate {
 #[derive(Deserialize)]
 struct GeminiError {
     message: String,
+}
+
+/// Maps a numeric integer token budget to an appropriate `thinking_level`.
+fn map_budget_to_thinking_level(budget: u32) -> &'static str {
+    match budget {
+        0 => "minimal",
+        1..=2_048 => "low",
+        2_049..=16_384 => "medium",
+        _ => "high",
+    }
+}
+
+/// Resolves a `ThinkingLevel` into the corresponding Gemini `thinking_level` string value.
+/// Returns `None` when thinking is disabled.
+/// If a numeric integer (token budget) is provided, a non-fatal deprecation warning is emitted
+/// to stderr and the budget is mapped to an appropriate thinking_level.
+fn resolve_thinking_level(thinking: &ThinkingLevel) -> Option<&'static str> {
+    match thinking {
+        ThinkingLevel::Off => None,
+        ThinkingLevel::Low => Some("low"),
+        ThinkingLevel::Medium => Some("medium"),
+        ThinkingLevel::High => Some("high"),
+        ThinkingLevel::Custom(budget) => {
+            eprintln!(
+                "Warning: Numeric thinking budget is deprecated for Gemini models and will be ignored/mapped"
+            );
+            Some(map_budget_to_thinking_level(*budget))
+        }
+    }
+}
+
+/// Constructs the `GeminiGenerationConfig` for a given `ThinkingLevel`.
+/// Returns `None` if thinking is disabled (`ThinkingLevel::Off`).
+fn resolve_generation_config(thinking: &ThinkingLevel) -> Option<GeminiGenerationConfig> {
+    resolve_thinking_level(thinking).map(|level| GeminiGenerationConfig {
+        thinking_config: Some(GeminiThinkingConfig {
+            thinking_level: level,
+        }),
+    })
 }
 
 #[async_trait]
@@ -150,11 +191,7 @@ impl LlmProvider for GeminiProvider {
             None
         };
 
-        let generation_config = thinking.token_budget().map(|budget| GeminiGenerationConfig {
-            thinking_config: Some(GeminiThinkingConfig {
-                thinking_budget: budget as i32,
-            }),
-        });
+        let generation_config = resolve_generation_config(thinking);
 
         let req_body = GeminiRequest {
             system_instruction: sys_instr,
@@ -257,42 +294,102 @@ mod tests {
 
     #[test]
     fn test_gemini_thinking_config_off() {
-        let config = ThinkingLevel::Off.token_budget().map(|budget| GeminiGenerationConfig {
-            thinking_config: Some(GeminiThinkingConfig {
-                thinking_budget: budget as i32,
-            }),
-        });
+        let config = resolve_generation_config(&ThinkingLevel::Off);
         assert!(config.is_none());
     }
 
     #[test]
     fn test_gemini_thinking_config_low() {
-        let config = ThinkingLevel::Low.token_budget().map(|budget| GeminiGenerationConfig {
-            thinking_config: Some(GeminiThinkingConfig {
-                thinking_budget: budget as i32,
-            }),
-        });
-        assert_eq!(config.unwrap().thinking_config.unwrap().thinking_budget, 1024);
+        let config = resolve_generation_config(&ThinkingLevel::Low);
+        assert_eq!(
+            config.unwrap().thinking_config.unwrap().thinking_level,
+            "low"
+        );
+    }
+
+    #[test]
+    fn test_gemini_thinking_config_medium() {
+        let config = resolve_generation_config(&ThinkingLevel::Medium);
+        assert_eq!(
+            config.unwrap().thinking_config.unwrap().thinking_level,
+            "medium"
+        );
     }
 
     #[test]
     fn test_gemini_thinking_config_high() {
-        let config = ThinkingLevel::High.token_budget().map(|budget| GeminiGenerationConfig {
-            thinking_config: Some(GeminiThinkingConfig {
-                thinking_budget: budget as i32,
-            }),
-        });
-        assert_eq!(config.unwrap().thinking_config.unwrap().thinking_budget, 32_000);
+        let config = resolve_generation_config(&ThinkingLevel::High);
+        assert_eq!(
+            config.unwrap().thinking_config.unwrap().thinking_level,
+            "high"
+        );
     }
 
     #[test]
     fn test_gemini_thinking_config_custom() {
-        let config = ThinkingLevel::Custom(4096).token_budget().map(|budget| GeminiGenerationConfig {
-            thinking_config: Some(GeminiThinkingConfig {
-                thinking_budget: budget as i32,
-            }),
-        });
-        assert_eq!(config.unwrap().thinking_config.unwrap().thinking_budget, 4096);
+        // Budget 0 falls back to "minimal"
+        let config_0 = resolve_generation_config(&ThinkingLevel::Custom(0));
+        assert_eq!(
+            config_0.unwrap().thinking_config.unwrap().thinking_level,
+            "minimal"
+        );
+
+        // Budget <= 2048 falls back to "low"
+        let config_low = resolve_generation_config(&ThinkingLevel::Custom(1024));
+        assert_eq!(
+            config_low.unwrap().thinking_config.unwrap().thinking_level,
+            "low"
+        );
+
+        // Budget between 2049 and 16384 falls back to "medium"
+        let config_med = resolve_generation_config(&ThinkingLevel::Custom(4096));
+        assert_eq!(
+            config_med.unwrap().thinking_config.unwrap().thinking_level,
+            "medium"
+        );
+
+        // Budget > 16384 falls back to "high"
+        let config_high = resolve_generation_config(&ThinkingLevel::Custom(32_000));
+        assert_eq!(
+            config_high.unwrap().thinking_config.unwrap().thinking_level,
+            "high"
+        );
+    }
+
+    #[test]
+    fn test_gemini_request_serialization_omits_deprecated_sampling_params() {
+        let req = GeminiRequest {
+            system_instruction: None,
+            contents: vec![GeminiContent { parts: vec![] }],
+            generation_config: resolve_generation_config(&ThinkingLevel::Low),
+        };
+
+        let json_val = serde_json::to_value(&req).expect("Serialization failed");
+
+        // Verify thinking_level is present inside thinkingConfig
+        let gen_config = json_val
+            .get("generationConfig")
+            .expect("generationConfig should be present");
+        let thinking_config = gen_config
+            .get("thinkingConfig")
+            .expect("thinkingConfig should be present");
+        assert_eq!(
+            thinking_config
+                .get("thinking_level")
+                .and_then(|v| v.as_str()),
+            Some("low")
+        );
+
+        // Verify thinkingBudget is NOT present
+        assert!(thinking_config.get("thinkingBudget").is_none());
+
+        // Verify deprecated sampling parameters (temperature, top_p, top_k) are omitted entirely
+        assert!(json_val.get("temperature").is_none());
+        assert!(json_val.get("top_p").is_none());
+        assert!(json_val.get("top_k").is_none());
+        assert!(gen_config.get("temperature").is_none());
+        assert!(gen_config.get("top_p").is_none());
+        assert!(gen_config.get("top_k").is_none());
     }
 
     #[tokio::test]
@@ -329,6 +426,86 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(result, "Zusammenfassung");
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_gemini_complete_with_thinking() {
+        let mut server = Server::new_async().await;
+        let url = server.url();
+        let provider = GeminiProvider::with_base_url("test_key".to_string(), url);
+
+        let mock = server
+            .mock(
+                "POST",
+                "/v1beta/models/test-model:generateContent?key=test_key",
+            )
+            .match_body(mockito::Matcher::PartialJsonString(
+                r#"{"generationConfig":{"thinkingConfig":{"thinking_level":"low"}}}"#.to_string(),
+            ))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                { "text": "Response with thinking" }
+                            ]
+                        }
+                    }
+                ]
+            }"#,
+            )
+            .create_async()
+            .await;
+
+        let result = provider
+            .complete("", &[PromptPart::Text("Prompt".to_string())], "test-model", &ThinkingLevel::Low)
+            .await
+            .unwrap();
+        assert_eq!(result, "Response with thinking");
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_gemini_complete_with_custom_budget_fallback() {
+        let mut server = Server::new_async().await;
+        let url = server.url();
+        let provider = GeminiProvider::with_base_url("test_key".to_string(), url);
+
+        let mock = server
+            .mock(
+                "POST",
+                "/v1beta/models/test-model:generateContent?key=test_key",
+            )
+            .match_body(mockito::Matcher::PartialJsonString(
+                r#"{"generationConfig":{"thinkingConfig":{"thinking_level":"medium"}}}"#.to_string(),
+            ))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                { "text": "Response with fallback" }
+                            ]
+                        }
+                    }
+                ]
+            }"#,
+            )
+            .create_async()
+            .await;
+
+        let result = provider
+            .complete("", &[PromptPart::Text("Prompt".to_string())], "test-model", &ThinkingLevel::Custom(4096))
+            .await
+            .unwrap();
+        assert_eq!(result, "Response with fallback");
         mock.assert_async().await;
     }
 
