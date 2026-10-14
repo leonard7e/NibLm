@@ -536,9 +536,6 @@ async fn run_linear_mode(
             continue;
         }
 
-        // Show percentage of completion
-        eprint!("{}% ", (batch_idx * 100) / batches.len());
-
         if debug {
             log_batch_debug(
                 batch_idx,

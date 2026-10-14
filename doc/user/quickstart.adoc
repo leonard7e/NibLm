@@ -45,7 +45,7 @@ niblm -p "Extract all action items as a numbered list." meeting_notes.txt
 niblm chapter1.txt chapter2.txt chapter3.txt chapter4.txt
 ----
 
-Progress is printed to standard error so you can pipe the final output cleanly:
+You can redirect or pipe the final output cleanly:
 
 [source,bash]
 ----
